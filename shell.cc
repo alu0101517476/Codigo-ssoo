@@ -19,7 +19,10 @@ std::error_code Terminal::read_line(int fd, std::string& line) {
     if (posicion_endl != std::string::npos) { // npos es una constante de string que dice si lo ha encontrado o no
       //Sustituir el contenido de line con el contenido de pending_input desde el principio hasta incluir el salto de línea
       line = pending_input.substr(0, posicion_endl + 1);
-      execute_commands(parse_line(line)); // LLAMAMOS A PARSE_LINE
+      if (!parse_line(line).empty()) {
+        execute_commands(parse_line(line)); // LLAMAMOS A PARSE_LINE
+      }
+      
       // eliminar del vector pending_input el contenido copiado en line
       pending_input = pending_input.substr(posicion_endl + 1, pending_input.size() - (posicion_endl + 1)); // pending_input.size() - (posicion_endl + 1) es la longitud de la cadena con la que nos quedamos
       return std::error_code();
@@ -116,7 +119,7 @@ int Terminal::echo_command(const std::vector<std::string>& args) {
 }
 
 int Terminal::cp_command(const std::vector<std::string>& args) {
-  if (args.size() == 4) {
+  if (args.size() == 5) {
     copy_file(args[2], args[3], true);
   } else {
     copy_file(args[1], args[2], false);
@@ -130,7 +133,7 @@ int Terminal::mv_command(const std::vector<std::string>& args) {
 }
 
 int Terminal::cd_command(const std::vector<std::string>& args) {
-  if (args.size() > 2) {
+  if (args.size() > 3) {
     std::cerr << "Error: cd: Demasiados argumentos" << std::endl;
     return 1;
   } else {
@@ -148,7 +151,7 @@ int Terminal::cd_command(const std::vector<std::string>& args) {
 shell::command_result Terminal::execute_commands(const std::vector<shell::command>& commands) {
   for(auto command : commands) {
     if (command.at(0) == "exit") {
-      exit(1);
+      return shell::command_result::quit(0);
     }
     if (es_comando_interno(command)) {
       menu_comandos(command);
@@ -156,7 +159,7 @@ shell::command_result Terminal::execute_commands(const std::vector<shell::comman
       execute_program(command);
     }
   }
-  shell::command_result::quit(0);
+  return shell::command_result::quit(0);
 }
 
 // Método para empezar a ejecutar el funcionamiento de la shell
