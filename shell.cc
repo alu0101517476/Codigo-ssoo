@@ -49,39 +49,39 @@ std::error_code Terminal::read_line(int fd, std::string& line) {
 }
 
 std::vector<shell::command> Terminal::parse_line(const std::string& line) {
-  std::vector<std::vector<std::string>> linea_de_comandos;
-  std::istringstream iss(line);
-  bool es_comando_puro{true}; // aux que nos sirve para saber si el string comando es un comando o un argumento, inicializado a true por que la primera palabra siempre sera un comando
-  int posicion{0}; // aux que nos ayuda para poder acceder a los comandos y agregar los argumentos siempre que sea necesario
-  while(!iss.eof()) {
-    std::string comando, aux{""};
-    iss >> comando; // Usar o almacenar la palabra word
-    std::vector<std::string> comando_y_argumentos; // vector<string> -> comando con sus argumentos
-    char caracter_especial{comando[comando.size() - 1]};
+  std::istringstream iss(line);         // creamos un istringstream para coger comando por comando de la cadena.
+  std::vector<shell::command> linea_de_comandos; // creamos el vector de vectores "comandos" que contendrá todos los comandos.
+  shell::command comando_actual;        // creamos un vector de strings para ver el comando actual.
 
-    if (es_comando_puro) {
-      comando_y_argumentos.push_back(comando); // metemos el comando
-      linea_de_comandos.push_back(comando_y_argumentos); // metemos el comando en el vector de la linea de comandos
-      es_comando_puro = false; // ya que después de un comando siempre viene su argumento, marcamos que la siguiente palabra sera un argumento
-    } else if (comando[0] == '#') { // Si la palabra empieza por '#', significa que el resto de la línea es un comentario, se sale retornando el vector de comandos leídos hasta el momento
-      return linea_de_comandos; 
-    } else { // es un argumento del comando
-        if (caracter_especial == ';' || caracter_especial == '&' || caracter_especial == '|' ) {
-          es_comando_puro = true; // despues de un caracter especial siempre vendra un comando, asi que lo marcamos para que lo siguiente que entre en el vector sea un comando
-          comando.erase(comando.size() - 1); // le borramos el caracter especial a el comando
-          linea_de_comandos[posicion].push_back(comando);
-          posicion++; // lo que va a venir despues es un nuevo comando, asi que para poder acceder a el aumentamos la posicion
-        } else { // puede ser que nos ingresen varios argumentos para un mismo comando separados por espacio, lo metemos en el vector de comandos
-          es_comando_puro = true; // despues de un caracter especial siempre vendra un comando, asi que lo marcamos para que lo siguiente que entre en el vector sea un comando
-          linea_de_comandos[posicion].push_back(comando);
-        }
-    }
+  while (!iss.eof()) {
+      std::string comando; // necesitamos una string para almacenar comando por comando de la cadena total de comandos
+                        // pasados por parámetros.
+      iss >> comando;      // recogemos el comando de "line".
+      char caracter_especial = comando[comando.size() - 1]; // asignamos una variable como un caracter especial
+
+      if (caracter_especial == ';' || caracter_especial == '&' || caracter_especial == '|') {
+          comando.erase(comando.size() - 1);        // Eliminamos el carácter especial
+          comando_actual.push_back(comando);     // Añadimos la palabra al vector de comandos actuales
+          linea_de_comandos.push_back(comando_actual); // Añadimos el comando actual a la linea de comandos
+          comando_actual.clear();             // Vaciamos el comando contenido en el comando actual.
+      } else if (comando[0] == '#') {
+          break;                          // Si la línea empieza con un '#', omitimos esa línea.
+      } else {
+          comando_actual.push_back(comando); // Si no hemos llegado al final del comando ni es una línea comentada,
+                                          // entendemos que no ha llegado su fin. Añadimos al comando actual la extensión.
+      }
+  }
+
+  if (!comando_actual.empty()) {
+      linea_de_comandos.push_back(comando_actual); // En el caso de no tener un fin de comando (';', '|', '&'),
+                                                  // añadimos a comandos lo que tenemos en el comando actual.
   }
   return linea_de_comandos;
 }
 
+
 // Función para comandos internos
-int Terminal::foo_command(const std::vector<std::string>& args) {
+int Terminal::menu_comandos(const std::vector<std::string>& args) {
   /*
   Comandos internos:
   cd_command() cambia el directorio de trabajo.
@@ -107,54 +107,56 @@ int Terminal::execute_program(const std::vector<std::string>& args, bool has_wai
 }
 
 // Implementación de comandos iternos:
-void Terminal::echo_command(const std::vector<std::string>& args) {
+int Terminal::echo_command(const std::vector<std::string>& args) {
   for (int i{1}; i < args.size(); ++i) {
     std::cout << args[i] << " ";
   }
   std::cout << std::endl;
+  return 0;
 }
 
-std::error_code Terminal::cp_command(const std::vector<std::string>& args) {
+int Terminal::cp_command(const std::vector<std::string>& args) {
   if (args.size() == 4) {
     copy_file(args[2], args[3], true);
   } else {
     copy_file(args[1], args[2], false);
   }
-  std::error_code();
+  return 0;
 }
 
-std::error_code Terminal::mv_command(const std::vector<std::string>& args) {
+int Terminal::mv_command(const std::vector<std::string>& args) {
   move_file(args[1], args[2]);
-  std::error_code();
+  return 0;
 }
 
-std::error_code Terminal::cd_command(const std::vector<std::string>& args) {
+int Terminal::cd_command(const std::vector<std::string>& args) {
   if (args.size() > 2) {
     std::cerr << "Error: cd: Demasiados argumentos" << std::endl;
-    return std::error_code(errno, std::system_category());
+    return 1;
   } else {
     int error{chdir(args[1].c_str())};
     if (error == -1) {
       std::cerr << "Error: cd: " << args[1] <<": No es un directorio" << std::endl;
-      return std::error_code(errno, std::system_category());
+      return 1;
     } else {
       chdir(args[1].c_str());
     }
   }
-  return std::error_code();
+  return 0;
 }
 
 shell::command_result Terminal::execute_commands(const std::vector<shell::command>& commands) {
   for(auto command : commands) {
     if (command.at(0) == "exit") {
-      return shell::command_result::quit(0);
+      exit(1);
     }
     if (es_comando_interno(command)) {
-      foo_command(command);
+      menu_comandos(command);
     } else {
       execute_program(command);
     }
   }
+  shell::command_result::quit(0);
 }
 
 // Método para empezar a ejecutar el funcionamiento de la shell
