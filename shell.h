@@ -36,12 +36,12 @@ class Terminal {
   std::vector<shell::command> parse_line(const std::string& line);
   shell::command_result execute_commands(const std::vector<shell::command>& commands);
   // Comandos internos
-  void echo_command(const std::vector<std::string>& args);
-  std::error_code cd_command(const std::vector<std::string>& args);
-  std::error_code cp_command(const std::vector<std::string>& args);
-  std::error_code mv_command(const std::vector<std::string>& args);
+  int echo_command(const std::vector<std::string>& args);
+  int cd_command(const std::vector<std::string>& args);
+  int cp_command(const std::vector<std::string>& args);
+  int mv_command(const std::vector<std::string>& args);
   // Métodos para ejecutar comandos internos y externos respectivamente
-  int foo_command(const std::vector<std::string>& args);
+  int menu_comandos(const std::vector<std::string>& args);
   int execute_program(const std::vector<std::string>& args, bool has_wait);
 };
 
