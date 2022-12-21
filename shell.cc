@@ -19,10 +19,6 @@ std::error_code Terminal::read_line(int fd, std::string& line) {
     if (posicion_endl != std::string::npos) { // npos es una constante de string que dice si lo ha encontrado o no
       //Sustituir el contenido de line con el contenido de pending_input desde el principio hasta incluir el salto de línea
       line = pending_input.substr(0, posicion_endl + 1);
-      if (!parse_line(line).empty()) {
-        execute_commands(parse_line(line)); // LLAMAMOS A PARSE_LINE
-      }
-      
       // eliminar del vector pending_input el contenido copiado en line
       pending_input = pending_input.substr(posicion_endl + 1, pending_input.size() - (posicion_endl + 1)); // pending_input.size() - (posicion_endl + 1) es la longitud de la cadena con la que nos quedamos
       return std::error_code();
@@ -106,6 +102,10 @@ int Terminal::menu_comandos(const std::vector<std::string>& args) {
 
 // Función para comandos externos
 int Terminal::execute_program(const std::vector<std::string>& args, bool has_wait=true) {
+  pid_t proceso_hijo = fork();
+  if (proceso_hijo == 0) {
+   execvp(args[0].c_str(), &args[0]);
+  }
   return 0;
 }
 
@@ -149,26 +149,31 @@ int Terminal::cd_command(const std::vector<std::string>& args) {
 }
 
 shell::command_result Terminal::execute_commands(const std::vector<shell::command>& commands) {
+  int return_value{0};
   for(auto command : commands) {
     if (command.at(0) == "exit") {
       return shell::command_result::quit(0);
     }
     if (es_comando_interno(command)) {
-      menu_comandos(command);
+      return_value = menu_comandos(command);
     } else {
       execute_program(command);
     }
   }
-  return shell::command_result::quit(0);
+  return shell::command_result(return_value, false);
 }
 
 // Método para empezar a ejecutar el funcionamiento de la shell
 void Terminal::start(int fd, std::string& line) {
   fd = STDIN_FILENO; // descriptor de archivo para la salida estándar
-  while (true) { // bucle principal
+  bool salida{true};
+  shell::command_result result{0, salida};
+  while (salida) { // bucle principal
     print_prompt();
     getline(std::cin, line);
     line.push_back('\n'); // metemos el salto de línea para diferenciar si el usuario escribe un comando vacío
-    read_line(fd, line);
+    read_line(fd, line);    
+    result = execute_commands(parse_line(line));
+    if (result.is_quit_requested) salida = false;
   }
 }
