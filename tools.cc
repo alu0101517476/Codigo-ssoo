@@ -131,3 +131,16 @@ bool es_comando_interno(const std::vector<std::string>& args) {
   }
   return false;
 }
+
+std::string getUserlogin() {
+    char* userlogin = getlogin();
+    if (userlogin == nullptr) {
+        std::array<char, 256> uname {};
+        if (getlogin_r(uname.data(), uname.size() - 1) != 0) {
+            struct passwd* pwd = getpwuid(getuid());
+            if (pwd) return pwd->pw_name;
+        }
+        return uname.data();
+    }
+    return userlogin;
+}
