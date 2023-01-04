@@ -1,12 +1,22 @@
 #include "shell.hpp"
 
-void Terminal::print_prompt() {
-  print("$>");
+void Terminal::print_prompt(int last_command_status) {
+  if (!isatty(STDIN_FILENO)) {
+    return;
+  }
+  std::string userlogin = getUserlogin();
+  std::string hostname;
+  hostname.resize(1000);
+  gethostname(hostname.data(), hostname.size());
+  std::string pwd = getcwd(nullptr, 0);
+  if (last_command_status == 0) {
+    print(userlogin + "@" + hostname + ":" + pwd + " $> ");
+  } else {
+    print(userlogin + "@" + hostname + ":" + pwd + " $< ");
+  }
 }
 
 std::error_code Terminal::read_line(int fd, std::string& line) {
-  //PARSE_LINE VACIO Y READ_LINE VACÍOS????
-
   // Inciar pending_input como un 'vector' vacío
   std::string pending_input{line};
   // creamos el buffer
@@ -56,11 +66,13 @@ std::vector<shell::command> Terminal::parse_line(const std::string& line) {
       std::string comando; // necesitamos una string para almacenar comando por comando de la cadena total de comandos
                         // pasados por parámetros.
       iss >> comando;      // recogemos el comando de "line".
+      if (comando.empty()) continue;
       char caracter_especial = comando[comando.size() - 1]; // asignamos una variable como un caracter especial
 
       if (caracter_especial == ';' || caracter_especial == '&' || caracter_especial == '|') {
           comando.erase(comando.size() - 1);        // Eliminamos el carácter especial
           comando_actual.push_back(comando);     // Añadimos la palabra al vector de comandos actuales
+          //comando_actual.push_back(std::string{caracter_especial}); // Añadimos el caracter especial
           linea_de_comandos.push_back(comando_actual); // Añadimos el comando actual a la linea de comandos
           comando_actual.clear();             // Vaciamos el comando contenido en el comando actual.
       } else if (comando[0] == '#') {
@@ -103,13 +115,20 @@ int Terminal::menu_comandos(const std::vector<std::string>& args) {
 // Función para comandos externos
 int Terminal::execute_program(const std::vector<std::string>& args, bool has_wait=true) {
   pid_t proceso_hijo = fork();
+  std::vector<const char*> argv;
   if (proceso_hijo == 0) {
-   execvp(args[0].c_str(), &args[0]);
+    for (int i{0}; i < args.size(); ++i) {
+      argv.push_back(args[i].c_str());
+    }
+    argv.push_back(NULL);
+    execvp(args[0].c_str(), const_cast<char* const*>(argv.data()));
+  } else if (proceso_hijo > 0) {
+    wait(nullptr);
   }
   return 0;
 }
 
-// Implementación de comandos iternos:
+// Implementación de comandos internos:
 int Terminal::echo_command(const std::vector<std::string>& args) {
   for (int i{1}; i < args.size(); ++i) {
     std::cout << args[i] << " ";
@@ -143,6 +162,7 @@ int Terminal::cd_command(const std::vector<std::string>& args) {
       return 1;
     } else {
       chdir(args[1].c_str());
+      std::cout << "Te encuentras en " << args[1]  << std::endl;
     }
   }
   return 0;
@@ -152,7 +172,8 @@ shell::command_result Terminal::execute_commands(const std::vector<shell::comman
   int return_value{0};
   for(auto command : commands) {
     if (command.at(0) == "exit") {
-      return shell::command_result::quit(0);
+      if(command.size() > 1) return_value = std::stoi(command[1]);
+      return shell::command_result::quit(return_value); // Si el comando recibe un "exit", saldremos del programa.
     }
     if (es_comando_interno(command)) {
       return_value = menu_comandos(command);
@@ -169,7 +190,7 @@ void Terminal::start(int fd, std::string& line) {
   bool salida{true};
   shell::command_result result{0, salida};
   while (salida) { // bucle principal
-    print_prompt();
+    print_prompt(result.return_value);
     getline(std::cin, line);
     line.push_back('\n'); // metemos el salto de línea para diferenciar si el usuario escribe un comando vacío
     read_line(fd, line);    
