@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <utility>
 #include <utime.h>
 
 #include <array>
@@ -35,12 +37,8 @@ std::error_code copy_file(const std::string& src_path,
 std::error_code move_file(const std::string& src_path,
                          const std::string& dst_path);
 
-                         namespace shell {
-using command = std::vector<std::string>;
-}
-
 namespace shell {
-  using command = std::vector<std::string>;
+using command = std::vector<std::string>;
 }
 
 namespace shell {
@@ -58,4 +56,5 @@ std::error_code print(const std::string& str);
 
 bool es_comando_interno(const std::vector<std::string>& args);
 
+std::string getUserlogin();
 #endif
