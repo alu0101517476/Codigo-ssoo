@@ -7,6 +7,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <pwd.h>
+#include <sys/wait.h> //bien
+#include <utility>
 #include <utime.h>
 
 #include <array>
@@ -30,7 +33,7 @@ class Terminal {
   // commands);
 
  private:
-  void print_prompt();
+  void print_prompt(int last_command_status);
   void echo_command();
   std::error_code read_line(int fd, std::string& line);
   std::vector<shell::command> parse_line(const std::string& line);
